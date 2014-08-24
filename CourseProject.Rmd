@@ -62,6 +62,7 @@ testing = train2[-inTrain,]
 ## Model Prediction
 
 Since we have more than two categorical outcomes, I've decided to test and compare the following  models:
+
 * discriminant analysis
 * trees
 * boosting with trees
