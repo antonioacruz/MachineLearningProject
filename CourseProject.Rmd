@@ -1,0 +1,134 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Antonio Cruz"
+date: "Sunday, August 24, 2014"
+output: html_document
+---
+
+## Executive summary
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+Data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants were collected.  
+
+Data for this project came from http://groupware.les.inf.puc-rio.br/har and can be downloaded here https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv.
+
+The original work with the WLE dataset came from this paper:
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+
+The goal of the project is to fit a model to predict the way barbell lifts were done.
+
+I cross-validate my model base on a partitioning of the train data in two data sets: 75% randomly in a testing data and 25% in testing data.
+
+My final model use boosting tree method and had an accuracy of 99.7% for testing data.
+
+## Load Data, Explanatory Analysis and Cleaning Data
+
+The training dataset add a lot of variable with empty values and NAs. When importing data I've converted empty cells to NA. After importing I decided to remove variables that had more than 90% of NA values (in fact, all removed columns had 97% NA or empty values), because that variables could not count in predicting outcomes.
+
+
+
+```{r, cache=TRUE}
+train <- read.csv("pml-training.csv", na.strings=c("", "NA"))
+count_na <- as.data.frame(colSums(is.na(train))/nrow(train)*100)
+count_na$variable <- rownames(count_na)
+rownames(count_na) <- NULL
+names(count_na) <- c("na", "variable")
+exclude <- count_na[count_na$na>90, 2]
+train2 <- train[, !(names(train) %in% exclude)]
+train2 <- train2[,-1]
+```
+
+So, from a original dataset with `r length(train)` variables I ended up with a dataset with only `r length(train2)`.
+
+When looking at the remaining  variables, thing look normal.
+
+I also analyze a scatter plot matrix for all variables colored by the outcome variable, and it seems that most of them could make a positive contribute to the model.
+
+## Cross Validation
+
+Based on the train data supplied I've created two sets of data: 75% for my training set and the remaining cases for testing data.
+
+```{r, cache=TRUE}
+library(caret)
+set.seed(2345)
+inTrain = createDataPartition(train2$classe, p = 3/4)[[1]]
+training = train2[ inTrain,]
+testing = train2[-inTrain,]
+
+```
+
+## Model Prediction
+
+Since we have more than two categorical outcomes, I've decided to test and compare the following  models:
+* discriminant analysis
+* trees
+* boosting with trees
+
+
+### Model creation
+
+```{r, cache=TRUE}
+library(caret)
+
+# discriminant analysis
+modlda <- train(classe ~ ., data=training, method="lda", verbose=FALSE)
+
+# trees
+modrpart <- train(classe ~ ., data=training, method="rpart2")
+
+# boosting
+modgbm <- train(classe ~ ., data=training, method="gbm", verbose=FALSE)
+
+```
+
+### Predicting values based on models and training  data
+```{r, cache=TRUE}
+# discriminant analysis
+plda <- predict(modlda, training)
+
+# trees
+prpart <- predict(modrpart, training)
+
+# boosting
+pgbm <- predict(modgbm, training)
+
+```
+
+
+
+### Confusion Matrix
+
+To compare the 3 model I've made a confusion matrix comparing real results from training data with predicting  values, for each model.
+
+```{r, cache=TRUE}
+# discriminant analysis
+confusionMatrix(training$classe, plda)
+
+# trees
+confusionMatrix(training$classe, prpart)
+
+# boosting
+confusionMatrix(training$classe, pgbm)
+
+```
+
+Comparing  the 3 models used, the best one using the training data is the boosting model. So this is the model that I'll use and test for out of sample error.
+
+## Final Model
+
+The error measure I'll use is the Accuracy measure that weights false positives/negatives equally. The expected accuracy is to be superior to 90%.
+
+My final model, using boosting with trees and gbm package:
+
+`r print(modgbm)`
+
+### Cross-Validation for test data
+
+The result for comparing the test data with the predict values using the chosen value is:
+
+```{r, cache=TRUE}
+confusionMatrix(testing$classe, predict(modgbm, testing))
+```
+
